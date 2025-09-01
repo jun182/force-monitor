@@ -1,0 +1,34 @@
+🌸 Force Monitor - GitHub Upload Commands 🌸
+=====================================================
+
+📋 Run these commands when you're ready to upload:
+
+1. Initialize git repository (if not already done):
+   cd "c:\Users\johnny.hamnesjo\Desktop\openscale-project"
+   git init
+
+2. Add all files:
+   git add .
+
+3. Commit with message:
+   git commit -m "🌸 Force Monitor v2.0 - Kawaii Edition with CSV Export 🌸
+
+   - Professional weight measurement interface for SparkFun OpenScale
+   - Beautiful kawaii-styled GUI and terminal applications  
+   - Session statistics (min/max/average) with calibration
+   - Working CSV export functionality
+   - GPL v3.0 licensed by Johnny Hamnesjö Olausson
+   - Contact: johnny.hamnesjo@chalmers.se"
+
+4. Add your GitHub repository (replace YOUR_USERNAME with your actual GitHub username):
+   git remote add origin https://github.com/YOUR_USERNAME/force-monitor.git
+
+5. Push to GitHub:
+   git push -u origin main
+
+📝 Notes:
+- Make sure you have a GitHub repository created called "force-monitor" 
+- Replace YOUR_USERNAME with your actual GitHub username
+- You might need to authenticate with GitHub credentials
+
+🌸 Your kawaii Force Monitor will be live on GitHub! 🌸
