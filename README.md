@@ -1,3 +1,9 @@
+100% vibe coded with vscode copilot with model Claude Sonnet 4.0, without any shame, I won't apologize, when there ain't nowhere you can go,
+
+running away from pain when you've been victimized, tales from another broken,
+
+home
+
 # 🌸 Force Monitor ~ Kawaii Edition 🌸
 
 **Precision Weight Measurement Interface**
