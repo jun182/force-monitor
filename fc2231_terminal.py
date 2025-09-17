@@ -105,6 +105,7 @@ class KawaiiFC2231Monitor:
         
         # Display timing
         self.last_display_time = 0
+        self.display_interval = 5.0  # Display interval in seconds (default 5.0)
         
         # CSV export data
         self.export_data = []
@@ -176,9 +177,9 @@ class KawaiiFC2231Monitor:
                         'Status': status.replace('🌸 ', '').replace('⚖️  ', '').replace('💪 ', '').replace('🔥 ', '').replace('🔻 ', '')
                     })
                 
-                # Only display every 5 seconds
+                # Display based on configurable interval
                 current_timestamp = time.time()
-                if current_timestamp - self.last_display_time >= 5.0:
+                if self.display_interval == 0 or current_timestamp - self.last_display_time >= self.display_interval:
                     # Display with kawaii aesthetics
                     print(f"{reading_num:>7} | {smoothed_voltage:>6.3f}V | {status:<10} | {force_display}N | {self.last_force_g:>7.1f}g | {temp:>5.1f}° | {current_time}")
                     self.last_display_time = current_timestamp
@@ -267,6 +268,30 @@ class KawaiiFC2231Monitor:
             return False
         
         return True
+
+    def adjust_display_interval(self, change):
+        """Adjust display interval by change amount"""
+        new_interval = self.display_interval + change
+        
+        # Clamp between 0 and 10 seconds
+        if new_interval < 0:
+            new_interval = 0
+        elif new_interval > 10.0:
+            new_interval = 10.0
+        
+        self.display_interval = new_interval
+        
+        if self.display_interval == 0:
+            print(f"🌸 Display: Every reading (real-time)")
+        else:
+            print(f"🌸 Display interval: {self.display_interval:.1f} seconds")
+    
+    def get_interval_status(self):
+        """Get current interval status string"""
+        if self.display_interval == 0:
+            return "Every reading"
+        else:
+            return f"{self.display_interval:.1f}s"
 
     def export_to_csv(self):
         """Export collected data to CSV file"""
@@ -368,6 +393,10 @@ def fc2231_monitor():
     print("💡 Controls: Ctrl+C or 'q' to stop")
     print("            Press 'c' key during operation to recalibrate")
     print("            Press 'e' key to toggle CSV export recording")
+    print("            Press '+' key to display faster (-0.5s)")
+    print("            Press '-' key to display slower (+0.5s)")
+    print("            Press 'i' key to show current display interval")
+    print(f"🕐 Current display interval: {monitor.get_interval_status()}")
     print("-" * 80)
     print("Reading# | Voltage | Status     | Force(N) | Force(g) | Temp  | Time")
     print("-" * 80)
@@ -418,6 +447,15 @@ def fc2231_monitor():
                             monitor.export_data = []  # Clear previous data
                         else:
                             print(f"\n📊 CSV export DISABLED")
+                        print("-" * 80)
+                    elif key == '+' or key == '=':
+                        monitor.adjust_display_interval(-0.5)  # Faster display (decrease interval)
+                        print("-" * 80)
+                    elif key == '-' or key == '_':
+                        monitor.adjust_display_interval(0.5)   # Slower display (increase interval)
+                        print("-" * 80)
+                    elif key == 'i':
+                        print(f"\n🌸 Display Interval: {monitor.get_interval_status()}")
                         print("-" * 80)
                     elif key == 'q':
                         print(f"\n👋 Quit requested by user")
