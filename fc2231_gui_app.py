@@ -59,13 +59,17 @@ class FC2231GUI:
         # Display settings
         self.display_interval = 5.0  # Default 5 seconds
         self.last_display_time = 0
+        self.last_gui_display_time = 0
         
         # CSV export
         self.export_data = []
         self.export_enabled = False
+        self.display_export_data = []
+        self.display_export_enabled = False
         
         # Statistics
         self.reading_count = 0
+        self.display_reading_count = 0
         
         # Create GUI
         self.create_widgets()
@@ -214,39 +218,85 @@ For technical support: johnny.hamnesjo@chalmers.se"""
         export_frame.pack(fill="x", pady=(0, 10))
         
         self.export_var = tk.BooleanVar()
-        self.export_check = ttk.Checkbutton(export_frame, text="Record Data", 
+        self.export_check = ttk.Checkbutton(export_frame, text="Record All Data", 
                                            variable=self.export_var, command=self.toggle_export)
         self.export_check.pack(pady=5)
         
-        self.export_btn = ttk.Button(export_frame, text="Save CSV", command=self.save_csv)
-        self.export_btn.pack(pady=5)
+        self.export_display_var = tk.BooleanVar()
+        self.export_display_check = ttk.Checkbutton(export_frame, text="Record Display Data Only", 
+                                                   variable=self.export_display_var, command=self.toggle_display_export)
+        self.export_display_check.pack(pady=5)
+        
+        button_frame = ttk.Frame(export_frame)
+        button_frame.pack(fill="x", pady=5)
+        
+        self.export_btn = ttk.Button(button_frame, text="Save All Data", command=self.save_csv)
+        self.export_btn.pack(side="left", padx=2)
+        
+        self.export_display_btn = ttk.Button(button_frame, text="Save Display Data", command=self.save_display_csv)
+        self.export_display_btn.pack(side="right", padx=2)
         
         self.export_status = ttk.Label(export_frame, text="Not recording")
         self.export_status.pack(pady=5)
         
+        # === RIGHT SIDE LAYOUT ===
+        right_frame = ttk.Frame(main_frame)
+        right_frame.grid(row=0, column=1, rowspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
+        right_frame.columnconfigure(0, weight=1)
+        right_frame.rowconfigure(1, weight=1)
+        
         # === TOP RIGHT - Current Reading Display ===
-        reading_frame = ttk.LabelFrame(main_frame, text="Current Reading", padding="10")
-        reading_frame.grid(row=0, column=1, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        reading_frame = ttk.LabelFrame(right_frame, text="Current Reading", padding="10")
+        reading_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 5))
         
         # Large display for current values
-        self.force_display = ttk.Label(reading_frame, text="0.00 N", font=("Arial", 24, "bold"))
-        self.force_display.pack(pady=10)
+        display_frame = ttk.Frame(reading_frame)
+        display_frame.pack(fill="x")
         
-        self.force_grams_display = ttk.Label(reading_frame, text="0.0 g", font=("Arial", 16))
-        self.force_grams_display.pack(pady=5)
+        left_display = ttk.Frame(display_frame)
+        left_display.pack(side="left", fill="x", expand=True)
         
-        self.voltage_display = ttk.Label(reading_frame, text="Voltage: 0.000 V", font=("Arial", 12))
-        self.voltage_display.pack(pady=5)
+        self.force_display = ttk.Label(left_display, text="0.00 N", font=("Arial", 20, "bold"))
+        self.force_display.pack()
         
-        self.temp_display = ttk.Label(reading_frame, text="Temp: 0.0°C", font=("Arial", 12))
-        self.temp_display.pack(pady=5)
+        self.force_grams_display = ttk.Label(left_display, text="0.0 g", font=("Arial", 14))
+        self.force_grams_display.pack()
         
-        self.reading_count_display = ttk.Label(reading_frame, text="Readings: 0", font=("Arial", 10))
-        self.reading_count_display.pack(pady=5)
+        right_display = ttk.Frame(display_frame)
+        right_display.pack(side="right", fill="x", expand=True)
+        
+        self.voltage_display = ttk.Label(right_display, text="Voltage: 0.000 V", font=("Arial", 10))
+        self.voltage_display.pack()
+        
+        self.temp_display = ttk.Label(right_display, text="Temp: 0.0°C", font=("Arial", 10))
+        self.temp_display.pack()
+        
+        self.reading_count_display = ttk.Label(right_display, text="Readings: 0", font=("Arial", 10))
+        self.reading_count_display.pack()
+        
+        # === MIDDLE RIGHT - Readings List ===
+        readings_frame = ttk.LabelFrame(right_frame, text="Recent Readings (Display Interval)", padding="5")
+        readings_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        
+        # Create scrollable text widget for readings
+        text_frame = ttk.Frame(readings_frame)
+        text_frame.pack(fill="both", expand=True)
+        
+        self.readings_text = tk.Text(text_frame, height=8, width=50, font=("Courier", 9))
+        readings_scrollbar = ttk.Scrollbar(text_frame, orient="vertical", command=self.readings_text.yview)
+        self.readings_text.configure(yscrollcommand=readings_scrollbar.set)
+        
+        self.readings_text.pack(side="left", fill="both", expand=True)
+        readings_scrollbar.pack(side="right", fill="y")
+        
+        # Add header to readings list
+        self.readings_text.insert(tk.END, "Reading# | Force(N) | Force(g) | Voltage | Temp | Time\n")
+        self.readings_text.insert(tk.END, "-" * 60 + "\n")
         
         # === BOTTOM RIGHT - Plot ===
-        plot_frame = ttk.LabelFrame(main_frame, text="Force vs Time", padding="5")
-        plot_frame.grid(row=1, column=1, sticky=(tk.W, tk.E, tk.N, tk.S))
+        plot_frame = ttk.LabelFrame(right_frame, text="Force vs Time", padding="5")
+        plot_frame.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(5, 0))
+        right_frame.rowconfigure(2, weight=2)  # Give plot more space
         
         # Matplotlib will be embedded here
         self.plot_frame = plot_frame
@@ -262,19 +312,28 @@ For technical support: johnny.hamnesjo@chalmers.se"""
         self.update_calibration_display()
         
     def setup_plot(self):
-        """Setup matplotlib plot"""
-        self.fig, self.ax = plt.subplots(figsize=(8, 4))
+        """Setup matplotlib plot with navigation toolbar"""
+        self.fig, self.ax = plt.subplots(figsize=(8, 3))
         self.ax.set_title("Force Readings Over Time")
-        self.ax.set_xlabel("Time")
+        self.ax.set_xlabel("Time (seconds)")
         self.ax.set_ylabel("Force (N)")
         self.ax.grid(True, alpha=0.3)
         
         # Create empty line
         self.line, = self.ax.plot([], [], 'b-', linewidth=2)
         
+        # Create frame for plot and toolbar
+        plot_container = ttk.Frame(self.plot_frame)
+        plot_container.pack(fill="both", expand=True)
+        
         # Embed plot in tkinter
-        self.canvas = FigureCanvasTkAgg(self.fig, self.plot_frame)
+        self.canvas = FigureCanvasTkAgg(self.fig, plot_container)
         self.canvas.get_tk_widget().pack(fill="both", expand=True)
+        
+        # Add navigation toolbar for zoom/pan
+        from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk
+        toolbar = NavigationToolbar2Tk(self.canvas, plot_container)
+        toolbar.update()
         
     def find_arduino_port(self):
         """Auto-detect Arduino port"""
@@ -439,6 +498,24 @@ For technical support: johnny.hamnesjo@chalmers.se"""
                 self.current_voltage = voltage
                 self.current_temp = temp
                 
+                # Add to readings list based on display interval
+                self.display_reading_count += 1
+                if self.display_reading_count >= self.display_interval:
+                    self.add_reading_to_list(reading_num, force_n, force_g, voltage, temp)
+                    self.display_reading_count = 0
+                    
+                    # Store for display-interval CSV export
+                    if self.display_export_enabled:
+                        self.display_export_data.append({
+                            'Reading': reading_num,
+                            'DateTime': datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
+                            'Time': datetime.now().strftime("%H:%M:%S"),
+                            'Voltage(V)': voltage,
+                            'Force(N)': force_n,
+                            'Force(g)': force_g,
+                            'Temperature(°C)': temp
+                        })
+                
                 return True
                 
         except (ValueError, IndexError) as e:
@@ -572,6 +649,62 @@ For technical support: johnny.hamnesjo@chalmers.se"""
                         
                 messagebox.showinfo("Export Complete", 
                                   f"Successfully exported {len(self.export_data)} readings to:\n{filename}")
+                                  
+            except Exception as e:
+                messagebox.showerror("Export Error", f"Failed to save file:\n{e}")
+                
+    def add_reading_to_list(self, reading_num, force_n, force_g, voltage, temp):
+        """Add a reading to the scrollable readings list"""
+        try:
+            current_time = datetime.now().strftime("%H:%M:%S")
+            reading_line = f"{reading_num:>8} | {force_n:>7.2f} | {force_g:>7.1f} | {voltage:>6.3f} | {temp:>4.1f} | {current_time}\n"
+            
+            self.readings_text.insert(tk.END, reading_line)
+            
+            # Auto-scroll to bottom
+            self.readings_text.see(tk.END)
+            
+            # Limit text widget to last 100 readings to prevent memory issues
+            lines = self.readings_text.get("1.0", tk.END).split('\n')
+            if len(lines) > 102:  # 100 readings + header + separator
+                # Keep header and separator, remove oldest readings
+                header_lines = lines[:2]
+                data_lines = lines[2:-1]  # Remove empty last line
+                keep_lines = header_lines + data_lines[-100:]
+                
+                self.readings_text.delete("1.0", tk.END)
+                self.readings_text.insert("1.0", '\n'.join(keep_lines) + '\n')
+                self.readings_text.see(tk.END)
+                
+        except Exception as e:
+            print(f"Error adding reading to list: {e}")
+            
+    def toggle_display_export(self):
+        """Toggle display interval export on/off"""
+        self.display_export_enabled = self.export_display_var.get()
+        if self.display_export_enabled:
+            self.display_export_data.clear()
+        else:
+            pass  # Keep existing data for potential export
+                                            
+    def save_display_csv(self):
+        """Save display interval data to CSV"""
+        if not self.display_export_data:
+            messagebox.showwarning("No Data", "No display interval data to export!")
+            return
+            
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+            title="Save Display Interval Data"
+        )
+        
+        if filename:
+            try:
+                df = pd.DataFrame(self.display_export_data)
+                df.to_csv(filename, index=False)
+                messagebox.showinfo("Export Complete", 
+                                  f"Successfully exported {len(self.display_export_data)} display readings to:\n{filename}")
                                   
             except Exception as e:
                 messagebox.showerror("Export Error", f"Failed to save file:\n{e}")
