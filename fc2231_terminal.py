@@ -15,6 +15,7 @@ the Free Software Foundation, either version 3 of the License, or
 """
 
 import serial
+import serial.tools.list_ports
 import time
 import statistics
 import msvcrt
@@ -26,6 +27,63 @@ from fc2231_calibration_manager import FC2231CalibrationManager
 # Default Arduino connection (adjust if needed)
 PORT = 'COM5'  # Arduino detected on COM5
 BAUDRATE = 9600
+
+def find_arduino_port():
+    """
+    Auto-detect Arduino port by scanning available COM ports
+    Returns the first port that responds like an Arduino, or None if not found
+    """
+    print("🔍 Scanning for Arduino...")
+    
+    # Get list of available COM ports
+    available_ports = serial.tools.list_ports.comports()
+    
+    if not available_ports:
+        print("❌ No COM ports found!")
+        return None
+    
+    print(f"📡 Found {len(available_ports)} COM port(s):")
+    for port in available_ports:
+        print(f"   - {port.device}: {port.description}")
+    
+    # Try each port to see if Arduino responds
+    for port in available_ports:
+        try:
+            print(f"🌸 Trying {port.device}...")
+            
+            # Try to connect
+            with serial.Serial(port.device, BAUDRATE, timeout=3) as ser:
+                time.sleep(2)  # Give Arduino time to initialize
+                
+                # Clear any initial data
+                ser.flushInput()
+                time.sleep(0.5)
+                
+                # Try to read some data
+                for attempt in range(5):
+                    try:
+                        line = ser.readline()
+                        if line:
+                            decoded = line.decode('utf-8', errors='ignore').strip()
+                            print(f"   📨 Received: {decoded[:50]}...")
+                            
+                            # Check if it looks like Arduino sensor data
+                            if ',' in decoded and len(decoded.split(',')) >= 2:
+                                print(f"✅ Arduino found on {port.device}!")
+                                return port.device
+                    except:
+                        pass
+                    time.sleep(0.5)
+                        
+        except serial.SerialException:
+            print(f"   ❌ Could not connect to {port.device}")
+            continue
+        except Exception as e:
+            print(f"   ⚠️  Error testing {port.device}: {e}")
+            continue
+    
+    print("❌ No Arduino detected on any COM port")
+    return None
 
 class KawaiiFC2231Monitor:
     def __init__(self):
@@ -316,8 +374,21 @@ def fc2231_monitor():
     
     calibration_request = False
     
+    # Auto-detect Arduino port
+    detected_port = find_arduino_port()
+    if not detected_port:
+        print(f"\n❌ No Arduino detected!")
+        print(f"💡 Please check:")
+        print(f"   - Arduino is connected via USB")
+        print(f"   - Arduino has the FC2231 sketch uploaded")
+        print(f"   - USB drivers are installed")
+        print(f"   - Arduino IDE is not using the port")
+        return
+    
+    print(f"\n🌸 Using Arduino on port: {detected_port} 🌸")
+    
     try:
-        with serial.Serial(PORT, BAUDRATE, timeout=2) as ser:
+        with serial.Serial(detected_port, BAUDRATE, timeout=2) as ser:
             # Wait for Arduino startup
             print("🤖 Waiting for Arduino startup...")
             time.sleep(3)
@@ -404,8 +475,8 @@ def fc2231_monitor():
         print("=" * 80)
     except serial.SerialException as e:
         print(f"\n❌ Serial connection error: {e}")
-        print(f"💡 Make sure Arduino is connected to {PORT}")
-        print(f"💡 Check if the correct COM port is being used")
+        print(f"💡 Make sure Arduino is connected and accessible")
+        print(f"💡 Try restarting the program to re-detect the port")
     except Exception as e:
         print(f"\n❌ Unexpected error: {e}")
 
