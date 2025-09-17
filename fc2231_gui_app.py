@@ -410,7 +410,7 @@ For technical support: johnny.hamnesjo@chalmers.se"""
                 temp = float(parts[3])
                 
                 # Apply calibration
-                force_n = self.cal_manager.voltage_to_force(voltage)
+                force_n = self.cal_manager.voltage_to_force(voltage, self.calibration_data)
                 force_g = self.cal_manager.force_to_grams(force_n)
                 
                 # Store data
