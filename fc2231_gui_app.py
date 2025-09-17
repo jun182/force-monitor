@@ -36,6 +36,9 @@ class FC2231GUI:
         self.root.title("FC2231 Force Monitor - Kawaii Edition")  # Removed emoji for font compatibility
         self.root.geometry("1200x800")
         
+        # Create menu bar
+        self.create_menu_bar()
+        
         # Initialize components
         self.cal_manager = FC2231CalibrationManager()
         self.calibration_data = self.cal_manager.load_calibration()
@@ -71,6 +74,90 @@ class FC2231GUI:
         # Start GUI update timer
         self.root.after(100, self.update_gui)
         
+    def create_menu_bar(self):
+        """Create menu bar with about information"""
+        menubar = tk.Menu(self.root)
+        self.root.config(menu=menubar)
+        
+        # Help menu
+        help_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label="About", command=self.show_about)
+        
+    def show_about(self):
+        """Show about dialog with credits"""
+        about_text = """FC2231 Force Monitor
+        
+Version: 1.0
+Developed by: Johnny Hamnesjö Olausson
+Institution: Chalmers University of Technology
+Department: Industrial and Materials Science
+
+This software is open source and distributed under
+the GNU General Public License v3.0
+
+For technical support: johnny.hamnesjo@chalmers.se"""
+        
+        messagebox.showinfo("About FC2231 Force Monitor", about_text)
+        
+    def select_com_port(self):
+        """Allow user to select COM port from available ports"""
+        available_ports = serial.tools.list_ports.comports()
+        
+        if not available_ports:
+            messagebox.showerror("No Ports", "No COM ports found!")
+            return None
+            
+        # Create port selection dialog
+        port_dialog = tk.Toplevel(self.root)
+        port_dialog.title("Select Arduino Port")
+        port_dialog.geometry("400x300")
+        port_dialog.transient(self.root)
+        port_dialog.grab_set()
+        
+        # Center the dialog
+        port_dialog.geometry("+%d+%d" % (self.root.winfo_rootx() + 300, self.root.winfo_rooty() + 200))
+        
+        selected_port = tk.StringVar()
+        
+        # Instructions
+        ttk.Label(port_dialog, text="Select the COM port for your Arduino:").pack(pady=10)
+        
+        # Port list with descriptions
+        port_frame = ttk.Frame(port_dialog)
+        port_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        for port in available_ports:
+            port_text = f"{port.device}: {port.description}"
+            ttk.Radiobutton(port_frame, text=port_text, variable=selected_port, 
+                           value=port.device).pack(anchor="w", pady=2)
+        
+        # Set default selection to first port
+        if available_ports:
+            selected_port.set(available_ports[0].device)
+        
+        # Buttons
+        button_frame = ttk.Frame(port_dialog)
+        button_frame.pack(pady=20)
+        
+        result = {"port": None}
+        
+        def ok_clicked():
+            result["port"] = selected_port.get()
+            port_dialog.destroy()
+            
+        def cancel_clicked():
+            result["port"] = None
+            port_dialog.destroy()
+            
+        ttk.Button(button_frame, text="Connect", command=ok_clicked).pack(side="left", padx=10)
+        ttk.Button(button_frame, text="Cancel", command=cancel_clicked).pack(side="left", padx=10)
+        
+        # Wait for dialog to close
+        self.root.wait_window(port_dialog)
+        
+        return result["port"]
+        
     def create_widgets(self):
         """Create the main GUI layout"""
         # Main container
@@ -84,14 +171,14 @@ class FC2231GUI:
         main_frame.rowconfigure(1, weight=1)
         
         # === LEFT PANEL - Controls ===
-        control_frame = ttk.LabelFrame(main_frame, text="🎮 Controls", padding="10")
+        control_frame = ttk.LabelFrame(main_frame, text="Controls", padding="10")
         control_frame.grid(row=0, column=0, rowspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0, 10))
         
         # Connection controls
         conn_frame = ttk.LabelFrame(control_frame, text="Connection")
         conn_frame.pack(fill="x", pady=(0, 10))
         
-        self.connect_btn = ttk.Button(conn_frame, text="Connect Arduino", command=self.connect_arduino)
+        self.connect_btn = ttk.Button(conn_frame, text="Select Port & Connect", command=self.connect_arduino)
         self.connect_btn.pack(pady=5)
         
         self.disconnect_btn = ttk.Button(conn_frame, text="Disconnect", command=self.disconnect_arduino, state="disabled")
@@ -224,23 +311,47 @@ class FC2231GUI:
         return None
         
     def connect_arduino(self):
-        """Connect to Arduino"""
+        """Connect to Arduino with user port selection"""
         if self.running:
             return
             
-        port = self.find_arduino_port()
+        # Let user select COM port
+        port = self.select_com_port()
         if not port:
-            messagebox.showerror("Connection Error", 
-                               "No Arduino detected!\n\n" +
-                               "Please check:\n" +
-                               "• Arduino is connected via USB\n" +
-                               "• Arduino has the FC2231 sketch uploaded\n" +
-                               "• USB drivers are installed")
-            return
+            return  # User cancelled
         
         try:
+            # Show connecting message
+            self.status_label.config(text=f"Connecting to {port}...", foreground="orange")
+            self.root.update()
+            
             self.serial_connection = serial.Serial(port, 9600, timeout=2)
             time.sleep(3)  # Arduino startup time
+            
+            # Test connection by trying to read data
+            test_successful = False
+            for attempt in range(3):
+                try:
+                    line = self.serial_connection.readline()
+                    if line:
+                        decoded = line.decode('utf-8', errors='ignore').strip()
+                        if ',' in decoded:
+                            test_successful = True
+                            break
+                except:
+                    pass
+                time.sleep(1)
+            
+            if not test_successful:
+                self.serial_connection.close()
+                messagebox.showwarning("Connection Warning", 
+                                     f"Connected to {port} but no sensor data detected.\n\n" +
+                                     "Please check:\n" +
+                                     "• Arduino has the FC2231 sketch uploaded\n" +
+                                     "• FC2231 sensor is connected properly\n" +
+                                     "• Arduino is sending data")
+                self.status_label.config(text="Status: Disconnected", foreground="red")
+                return
             
             # Start data reading thread
             self.running = True
@@ -255,6 +366,7 @@ class FC2231GUI:
             
         except Exception as e:
             messagebox.showerror("Connection Error", f"Failed to connect to {port}:\n{e}")
+            self.status_label.config(text="Status: Disconnected", foreground="red")
             
     def disconnect_arduino(self):
         """Disconnect from Arduino"""
