@@ -33,7 +33,7 @@ from fc2231_calibration_manager import FC2231CalibrationManager
 class FC2231GUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("🌸 FC2231 Force Monitor - Kawaii Edition 🌸")
+        self.root.title("FC2231 Force Monitor - Kawaii Edition")  # Removed emoji for font compatibility
         self.root.geometry("1200x800")
         
         # Initialize components
@@ -88,30 +88,30 @@ class FC2231GUI:
         control_frame.grid(row=0, column=0, rowspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0, 10))
         
         # Connection controls
-        conn_frame = ttk.LabelFrame(control_frame, text="📡 Connection")
+        conn_frame = ttk.LabelFrame(control_frame, text="Connection")
         conn_frame.pack(fill="x", pady=(0, 10))
         
-        self.connect_btn = ttk.Button(conn_frame, text="🔍 Connect Arduino", command=self.connect_arduino)
+        self.connect_btn = ttk.Button(conn_frame, text="Connect Arduino", command=self.connect_arduino)
         self.connect_btn.pack(pady=5)
         
-        self.disconnect_btn = ttk.Button(conn_frame, text="❌ Disconnect", command=self.disconnect_arduino, state="disabled")
+        self.disconnect_btn = ttk.Button(conn_frame, text="Disconnect", command=self.disconnect_arduino, state="disabled")
         self.disconnect_btn.pack(pady=5)
         
         self.status_label = ttk.Label(conn_frame, text="Status: Disconnected", foreground="red")
         self.status_label.pack(pady=5)
         
         # Calibration controls
-        cal_frame = ttk.LabelFrame(control_frame, text="🌸 Calibration")
+        cal_frame = ttk.LabelFrame(control_frame, text="Calibration")
         cal_frame.pack(fill="x", pady=(0, 10))
         
-        self.calibrate_btn = ttk.Button(cal_frame, text="🎌 Tare (Zero)", command=self.calibrate_sensor, state="disabled")
+        self.calibrate_btn = ttk.Button(cal_frame, text="Tare (Zero)", command=self.calibrate_sensor, state="disabled")
         self.calibrate_btn.pack(pady=5)
         
         self.cal_status_label = ttk.Label(cal_frame, text="Calibration: Not loaded")
         self.cal_status_label.pack(pady=5)
         
         # Display interval controls
-        interval_frame = ttk.LabelFrame(control_frame, text="⏰ Display Interval")
+        interval_frame = ttk.LabelFrame(control_frame, text="Display Interval")
         interval_frame.pack(fill="x", pady=(0, 10))
         
         self.interval_var = tk.DoubleVar(value=5.0)
@@ -123,22 +123,22 @@ class FC2231GUI:
         self.interval_label.pack(pady=5)
         
         # CSV Export controls
-        export_frame = ttk.LabelFrame(control_frame, text="📊 CSV Export")
+        export_frame = ttk.LabelFrame(control_frame, text="CSV Export")
         export_frame.pack(fill="x", pady=(0, 10))
         
         self.export_var = tk.BooleanVar()
-        self.export_check = ttk.Checkbutton(export_frame, text="📝 Record Data", 
+        self.export_check = ttk.Checkbutton(export_frame, text="Record Data", 
                                            variable=self.export_var, command=self.toggle_export)
         self.export_check.pack(pady=5)
         
-        self.export_btn = ttk.Button(export_frame, text="💾 Save CSV", command=self.save_csv)
+        self.export_btn = ttk.Button(export_frame, text="Save CSV", command=self.save_csv)
         self.export_btn.pack(pady=5)
         
         self.export_status = ttk.Label(export_frame, text="Not recording")
         self.export_status.pack(pady=5)
         
         # === TOP RIGHT - Current Reading Display ===
-        reading_frame = ttk.LabelFrame(main_frame, text="🌸 Current Reading", padding="10")
+        reading_frame = ttk.LabelFrame(main_frame, text="Current Reading", padding="10")
         reading_frame.grid(row=0, column=1, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
         
         # Large display for current values
@@ -158,14 +158,14 @@ class FC2231GUI:
         self.reading_count_display.pack(pady=5)
         
         # === BOTTOM RIGHT - Plot ===
-        plot_frame = ttk.LabelFrame(main_frame, text="📈 Force vs Time", padding="5")
+        plot_frame = ttk.LabelFrame(main_frame, text="Force vs Time", padding="5")
         plot_frame.grid(row=1, column=1, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Matplotlib will be embedded here
         self.plot_frame = plot_frame
         
         # === BOTTOM LEFT - Statistics ===
-        stats_frame = ttk.LabelFrame(control_frame, text="📊 Session Statistics")
+        stats_frame = ttk.LabelFrame(control_frame, text="Session Statistics")
         stats_frame.pack(fill="both", expand=True)
         
         self.stats_text = tk.Text(stats_frame, height=8, width=30, font=("Courier", 9))
@@ -177,7 +177,7 @@ class FC2231GUI:
     def setup_plot(self):
         """Setup matplotlib plot"""
         self.fig, self.ax = plt.subplots(figsize=(8, 4))
-        self.ax.set_title("🌸 Force Readings Over Time 🌸")
+        self.ax.set_title("Force Readings Over Time")
         self.ax.set_xlabel("Time")
         self.ax.set_ylabel("Force (N)")
         self.ax.grid(True, alpha=0.3)
@@ -329,39 +329,45 @@ class FC2231GUI:
                 
                 return True
                 
-        except (ValueError, IndexError):
-            pass
+        except (ValueError, IndexError) as e:
+            print(f"Data parsing error: {e}, Line: {line}")
+        except Exception as e:
+            print(f"Unexpected error in process_data_line: {e}, Line: {line}")
             
         return False
         
     def update_gui(self):
         """Update GUI with new data"""
-        # Process queued data
-        while not self.data_queue.empty():
-            try:
-                data = self.data_queue.get_nowait()
-                if data.startswith("ERROR:"):
-                    messagebox.showerror("Serial Error", data[6:])
-                    self.disconnect_arduino()
-                else:
-                    self.process_data_line(data)
-            except queue.Empty:
-                break
+        try:
+            # Process queued data
+            while not self.data_queue.empty():
+                try:
+                    data = self.data_queue.get_nowait()
+                    if data.startswith("ERROR:"):
+                        messagebox.showerror("Serial Error", data[6:])
+                        self.disconnect_arduino()
+                    else:
+                        self.process_data_line(data)
+                except queue.Empty:
+                    break
+                    
+            # Update displays if we have current data
+            if hasattr(self, 'current_force'):
+                self.force_display.config(text=f"{self.current_force:.2f} N")
+                self.force_grams_display.config(text=f"{self.current_force_g:.1f} g")
+                self.voltage_display.config(text=f"Voltage: {self.current_voltage:.3f} V")
+                self.temp_display.config(text=f"Temp: {self.current_temp:.1f}°C")
+                self.reading_count_display.config(text=f"Readings: {self.reading_count}")
                 
-        # Update displays if we have current data
-        if hasattr(self, 'current_force'):
-            self.force_display.config(text=f"{self.current_force:.2f} N")
-            self.force_grams_display.config(text=f"{self.current_force_g:.1f} g")
-            self.voltage_display.config(text=f"Voltage: {self.current_voltage:.3f} V")
-            self.temp_display.config(text=f"Temp: {self.current_temp:.1f}°C")
-            self.reading_count_display.config(text=f"Readings: {self.reading_count}")
+            # Update plot
+            self.update_plot()
             
-        # Update plot
-        self.update_plot()
-        
-        # Update statistics
-        self.update_statistics()
-        
+            # Update statistics
+            self.update_statistics()
+            
+        except Exception as e:
+            print(f"Error in update_gui: {e}")
+            
         # Schedule next update
         self.root.after(100, self.update_gui)
         
@@ -386,19 +392,19 @@ class FC2231GUI:
         if self.session_forces:
             non_zero_forces = [f for f in self.session_forces if abs(f) > 0.05]
             if non_zero_forces:
-                stats_text = "🌸 Session Stats 🌸\n\n"
-                stats_text += f"📊 Count: {len(non_zero_forces)}\n"
-                stats_text += f"📉 Min: {min(non_zero_forces):.2f}N\n"
-                stats_text += f"📈 Max: {max(non_zero_forces):.2f}N\n"
-                stats_text += f"📊 Avg: {statistics.mean(non_zero_forces):.2f}N\n"
+                stats_text = "Session Stats\n\n"
+                stats_text += f"Count: {len(non_zero_forces)}\n"
+                stats_text += f"Min: {min(non_zero_forces):.2f}N\n"
+                stats_text += f"Max: {max(non_zero_forces):.2f}N\n"
+                stats_text += f"Avg: {statistics.mean(non_zero_forces):.2f}N\n"
                 
                 if len(non_zero_forces) > 1:
-                    stats_text += f"📏 StdDev: {statistics.stdev(non_zero_forces):.2f}N\n"
+                    stats_text += f"StdDev: {statistics.stdev(non_zero_forces):.2f}N\n"
                 
                 # Session duration
                 duration = datetime.now() - self.session_start_time
                 minutes, seconds = divmod(duration.seconds, 60)
-                stats_text += f"⏱️ Duration: {minutes}:{seconds:02d}\n"
+                stats_text += f"Duration: {minutes}:{seconds:02d}\n"
                 
                 self.stats_text.delete(1.0, tk.END)
                 self.stats_text.insert(1.0, stats_text)
@@ -406,12 +412,12 @@ class FC2231GUI:
     def update_calibration_display(self):
         """Update calibration status display"""
         if self.calibration_data['calibration_date'] is not None:
-            status = "✅ Calibrated"
+            status = "Calibrated"
             tare_v = self.calibration_data['tare_voltage']
             max_force = self.calibration_data['max_force_newtons']
             self.cal_status_label.config(text=f"{status}\nTare: {tare_v:.4f}V\nMax: {max_force:.1f}N")
         else:
-            self.cal_status_label.config(text="❌ Not Calibrated\nPress Tare to calibrate")
+            self.cal_status_label.config(text="Not Calibrated\nPress Tare to calibrate")
             
     def update_interval(self, value):
         """Update display interval from scale"""
@@ -426,7 +432,7 @@ class FC2231GUI:
         self.export_enabled = self.export_var.get()
         if self.export_enabled:
             self.export_data = []  # Clear previous data
-            self.export_status.config(text="🔴 Recording...")
+            self.export_status.config(text="Recording...")
         else:
             self.export_status.config(text="Not recording")
             
