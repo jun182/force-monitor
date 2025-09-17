@@ -405,10 +405,10 @@ class FC2231GUI:
                 
     def update_calibration_display(self):
         """Update calibration status display"""
-        if self.calibration_data['is_calibrated']:
+        if self.calibration_data['calibration_date'] is not None:
             status = "✅ Calibrated"
             tare_v = self.calibration_data['tare_voltage']
-            max_force = self.calibration_data['max_force']
+            max_force = self.calibration_data['max_force_newtons']
             self.cal_status_label.config(text=f"{status}\nTare: {tare_v:.4f}V\nMax: {max_force:.1f}N")
         else:
             self.cal_status_label.config(text="❌ Not Calibrated\nPress Tare to calibrate")
