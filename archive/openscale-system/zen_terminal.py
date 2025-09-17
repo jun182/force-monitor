@@ -25,24 +25,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 import serial
 import time
 import statistics
+import threading
+import msvcrt
 from collections import deque
 from datetime import datetime
+from calibration_manager import CalibrationManager
 
 PORT = 'COM4'
 BAUDRATE = 9600
 
 class ZenScale:
     def __init__(self):
-        self.tare_offset = -33.9975  # From accurate calibration
+        # Load calibration from persistent storage
+        self.cal_manager = CalibrationManager()
+        self.calibration_data = self.cal_manager.load_calibration()
         self.readings_buffer = deque(maxlen=10)  # Rolling average
         self.session_weights = []
         self.session_start_time = datetime.now()
         
     def process_reading(self, raw_lbs, temp):
         """Process a raw reading with Zen-like precision"""
-        # Convert and apply tare
+        # Convert to grams
         raw_grams = raw_lbs * 453.592
-        weight_grams = raw_grams - self.tare_offset
+        
+        # Apply calibration (tare and scale factor)
+        weight_grams = self.cal_manager.apply_calibration(raw_grams, self.calibration_data)
         
         # Add to rolling buffer
         self.readings_buffer.append(weight_grams)
@@ -68,6 +75,16 @@ class ZenScale:
         self.session_weights.append(display_weight)
             
         return display_weight, status, temp
+    
+    def recalibrate_tare(self, raw_readings):
+        """Perform live tare recalibration"""
+        calibration_data = self.cal_manager.perform_tare_calibration(raw_readings)
+        
+        # Save new calibration
+        if self.cal_manager.save_calibration(calibration_data):
+            self.calibration_data = calibration_data
+            return True
+        return False
 
 def show_header():
     """Display beautiful header with kawaii aesthetics"""
@@ -84,6 +101,17 @@ def show_header():
     print("📄 License: GNU General Public License v3.0")
     print("🌸 Designed with kawaii simplicity and precision 🌸")
     print("═" * 80)
+    
+def show_calibration_info(scale):
+    """Display current calibration status"""
+    cal_status = scale.cal_manager.get_calibration_status(scale.calibration_data)
+    tare_offset = scale.calibration_data.get("tare_offset", 0.0)
+    scale_factor = scale.calibration_data.get("scale_factor", 1.0)
+    
+    print(f"\n🔧 Calibration Status: {cal_status}")
+    print(f"   ⚖️  Tare offset: {tare_offset:>8.2f}g")
+    print(f"   📏 Scale factor: {scale_factor:>8.4f}")
+    print("   💡 Tip: Press 'C' during operation to recalibrate")
     print()
 
 def show_statistics(scale):
@@ -108,13 +136,17 @@ def zen_scale_monitor():
     """Main monitoring function with kawaii aesthetics"""
     show_header()
     
+    scale = ZenScale()
+    show_calibration_info(scale)
+    
     print("🎌 Starting Kawaii Scale Monitor... >w<")
-    print("Press Ctrl+C to stop")
+    print("💡 Controls: Ctrl+C to stop")
+    print("            Press 'c' key during operation to recalibrate")
     print("-" * 80)
     print("Reading# |  Raw(lbs) | Status      | Weight(g) | Temp(°C) | Time")
     print("-" * 80)
     
-    scale = ZenScale()
+    calibration_request = False
     
     try:
         with serial.Serial(PORT, BAUDRATE, timeout=2) as ser:
@@ -126,6 +158,26 @@ def zen_scale_monitor():
             reading_count = 0
             
             while True:
+                # Check for user input (Windows compatible)
+                if msvcrt.kbhit():
+                    key = msvcrt.getch().decode('utf-8').lower()
+                    if key == 'c':
+                        calibration_request = True
+                
+                # Handle calibration request
+                if calibration_request:
+                    print(f"\n🌸 Calibration requested! 🌸")
+                    if interactive_calibration(scale, ser):
+                        print("✅ Calibration complete! Resuming monitoring...")
+                        show_calibration_info(scale)
+                        print("-" * 80)
+                        print("Reading# |  Raw(lbs) | Status      | Weight(g) | Temp(°C) | Time")
+                        print("-" * 80)
+                    else:
+                        print("❌ Calibration failed. Resuming monitoring...")
+                        print("-" * 80)
+                    calibration_request = False
+                
                 line = ser.readline()
                 if line:
                     decoded = line.decode('utf-8', errors='ignore').strip()
@@ -162,6 +214,57 @@ def zen_scale_monitor():
                                 pass
                 
                 time.sleep(0.1)
+
+def interactive_calibration(scale, ser):
+    """Interactive calibration routine"""
+    print(f"\n🌸 Kawaii Calibration Mode 🌸")
+    print("Make sure the load cell is empty and stable!")
+    print("This will take 20 readings to establish a new zero point.")
+    
+    response = input("Continue with calibration? (y/N): ").lower().strip()
+    if response != 'y':
+        print("Calibration cancelled.")
+        return False
+    
+    print("📊 Taking 20 calibration readings...")
+    calibration_readings = []
+    
+    try:
+        for i in range(20):
+            line = ser.readline()
+            if line:
+                decoded = line.decode('utf-8', errors='ignore').strip()
+                if ',' in decoded and 'lbs' in decoded:
+                    parts = decoded.split(',')
+                    if len(parts) >= 4 and parts[2] == 'lbs':
+                        try:
+                            raw_lbs = float(parts[1])
+                            raw_grams = raw_lbs * 453.592
+                            calibration_readings.append(raw_grams)
+                            print(f"  📍 Reading {i+1}/20: {raw_grams:.2f}g")
+                        except (ValueError, IndexError):
+                            pass
+            time.sleep(0.3)
+        
+        if len(calibration_readings) >= 10:
+            success = scale.recalibrate_tare(calibration_readings)
+            if success:
+                stability = statistics.stdev(calibration_readings)
+                print(f"\n✅ Calibration Complete!")
+                print(f"   📊 New tare offset: {scale.calibration_data['tare_offset']:.2f}g")
+                print(f"   📏 Stability: ±{stability:.2f}g")
+                print(f"   💾 Saved to calibration file")
+                return True
+            else:
+                print(f"❌ Failed to save calibration")
+                return False
+        else:
+            print(f"❌ Insufficient readings for calibration")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Calibration error: {e}")
+        return False
                 
     except KeyboardInterrupt:
         print(f"\n\n🌸 Kawaii Session Complete! >w< 🌸")

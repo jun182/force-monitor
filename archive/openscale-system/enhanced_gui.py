@@ -28,6 +28,7 @@ import statistics
 import csv
 from datetime import datetime, timedelta
 from collections import deque
+from calibration_manager import CalibrationManager
 
 class EnhancedForceMonitorGUI:
     def __init__(self, root):
@@ -39,7 +40,11 @@ class EnhancedForceMonitorGUI:
         # Serial connection parameters
         self.port = 'COM4'
         self.baudrate = 9600
-        self.tare_offset = -33.9975  # From accurate calibration
+        
+        # Load calibration from persistent storage
+        self.cal_manager = CalibrationManager()
+        self.calibration_data = self.cal_manager.load_calibration()
+        
         self.serial_connection = None
         self.reading_thread = None
         self.is_running = False
@@ -62,6 +67,7 @@ class EnhancedForceMonitorGUI:
         self.calibration_readings = []
         
         self.setup_gui()
+        self.show_calibration_status()
         self.show_about_dialog()
         
     def setup_gui(self):
@@ -249,10 +255,25 @@ class EnhancedForceMonitorGUI:
                                     padx=15, pady=6, relief='raised', bd=2)
         self.about_button.pack(side='left', padx=4)
         
+        # Calibration status frame
+        cal_frame = tk.Frame(self.root, bg='#f8f5f0')
+        cal_frame.pack(pady=5)
+        
+        self.cal_status_var = tk.StringVar(value="Loading calibration...")
+        self.cal_status_label = tk.Label(cal_frame, textvariable=self.cal_status_var,
+                                        font=('Arial', 9), bg='#f8f5f0', fg='#7f8c8d')
+        self.cal_status_label.pack()
+        
         # Auto-start after a short delay
         self.root.after(1500, self.start_reading)
         self.root.after(1000, self.update_session_time)
         
+    def show_calibration_status(self):
+        """Display current calibration status"""
+        status = self.cal_manager.get_calibration_status(self.calibration_data)
+        tare_offset = self.calibration_data.get("tare_offset", 0.0)
+        self.cal_status_var.set(f"🔧 {status} | Tare: {tare_offset:.2f}g")
+    
     def start_reading(self):
         try:
             # Close any existing connection first
@@ -309,12 +330,21 @@ class EnhancedForceMonitorGUI:
     def quick_tare(self):
         """Quick tare using current reading"""
         if hasattr(self, 'last_raw_reading'):
-            self.tare_offset = self.last_raw_reading
-            self.status_label.config(text="🎯 Status: Quick Tare Applied", fg='#9b59b6')
-            messagebox.showinfo("Tare Complete", 
-                              f"🎌 New tare offset: {self.tare_offset:.2f}g")
-            # Reset back to connected after 2 seconds
-            self.root.after(2000, lambda: self.status_label.config(text="🟢 Status: Connected & Reading", fg='#27ae60'))
+            # Create calibration data with new tare
+            new_calibration = self.calibration_data.copy()
+            new_calibration["tare_offset"] = self.last_raw_reading
+            
+            # Save calibration
+            if self.cal_manager.save_calibration(new_calibration):
+                self.calibration_data = new_calibration
+                self.show_calibration_status()
+                self.status_label.config(text="🎯 Status: Quick Tare Applied", fg='#9b59b6')
+                messagebox.showinfo("Tare Complete", 
+                                  f"🎌 New tare offset: {self.last_raw_reading:.2f}g\n💾 Calibration saved!")
+                # Reset back to connected after 2 seconds
+                self.root.after(2000, lambda: self.status_label.config(text="🟢 Status: Connected & Reading", fg='#27ae60'))
+            else:
+                messagebox.showerror("Save Error", "Failed to save calibration!")
         else:
             messagebox.showwarning("No Data", "No reading available for tare!")
     
@@ -399,7 +429,10 @@ useful, but WITHOUT ANY WARRANTY.
                     writer.writerow(['🏛️ Institution:', 'Chalmers University of Technology'])
                     writer.writerow(['📚 Department:', 'Department of Industrial and Materials Science'])
                     writer.writerow([])
-                    writer.writerow(['⚖️ Tare Offset (g)', f'{self.tare_offset:.4f}'])
+                    writer.writerow(['⚖️ Tare Offset (g)', f'{self.calibration_data.get("tare_offset", 0.0):.4f}'])
+                    writer.writerow(['📏 Scale Factor', f'{self.calibration_data.get("scale_factor", 1.0):.4f}'])
+                    cal_date = self.calibration_data.get("calibration_date", "Never")
+                    writer.writerow(['📅 Calibration Date', cal_date])
                     writer.writerow(['🔢 Total Readings', len(self.session_weights)])
                     writer.writerow(['⏱️ Session Duration', self.time_var.get()])
                     writer.writerow([])  # Empty row
@@ -445,10 +478,12 @@ useful, but WITHOUT ANY WARRANTY.
                             raw_lbs = float(parts[1])
                             temp = float(parts[3])
                             
-                            # Convert to grams and apply tare
+                            # Convert to grams
                             raw_grams = raw_lbs * 453.592
                             self.last_raw_reading = raw_grams
-                            weight_grams = raw_grams - self.tare_offset
+                            
+                            # Apply calibration (tare and scale factor)
+                            weight_grams = self.cal_manager.apply_calibration(raw_grams, self.calibration_data)
                             
                             # Handle calibration with kawaii styling
                             if self.calibrating:
@@ -458,11 +493,18 @@ useful, but WITHOUT ANY WARRANTY.
                                     fg='#f39c12'))
                                 
                                 if len(self.calibration_readings) >= 20:
-                                    # Calculate new tare offset
-                                    new_offset = statistics.mean(self.calibration_readings)
-                                    self.tare_offset = new_offset
-                                    self.calibrating = False
-                                    self.root.after(0, lambda: self.finish_calibration(new_offset))
+                                    # Calculate new tare offset using calibration manager
+                                    try:
+                                        new_calibration = self.cal_manager.perform_tare_calibration(self.calibration_readings)
+                                        
+                                        # Save calibration
+                                        if self.cal_manager.save_calibration(new_calibration):
+                                            self.calibration_data = new_calibration
+                                            self.root.after(0, self.finish_calibration)
+                                        else:
+                                            self.root.after(0, lambda: self.calibration_error("Failed to save calibration"))
+                                    except Exception as e:
+                                        self.root.after(0, lambda: self.calibration_error(str(e)))
                             
                             # Add to rolling buffer for smoothing
                             self.readings_buffer.append(weight_grams)
@@ -478,16 +520,31 @@ useful, but WITHOUT ANY WARRANTY.
                 print(f"Error reading serial data: {e}")
                 break
     
-    def finish_calibration(self, new_offset):
+    def finish_calibration(self):
         """Complete the calibration process"""
+        self.calibrating = False
+        new_offset = self.calibration_data["tare_offset"]
+        stability = statistics.stdev(self.calibration_readings)
+        
         self.status_label.config(text="🌸 Status: Calibration Complete!", fg='#27ae60')
         self.calibrate_button.config(state='normal')
+        self.show_calibration_status()
+        
         messagebox.showinfo("Calibration Complete", 
                           f"🎌 Kawaii Calibration Successful! 🎌\n\n" +
-                          f"New calibration offset: {new_offset:.2f}g\n\n" +
-                          f"Standard deviation: {statistics.stdev(self.calibration_readings):.2f}g")
+                          f"New calibration offset: {new_offset:.2f}g\n" +
+                          f"Standard deviation: {stability:.2f}g\n" +
+                          f"💾 Calibration saved to file!")
         # Reset back to connected after 3 seconds
         self.root.after(3000, lambda: self.status_label.config(text="🟢 Status: Connected & Reading", fg='#27ae60'))
+    
+    def calibration_error(self, error_msg):
+        """Handle calibration errors"""
+        self.calibrating = False
+        self.status_label.config(text="❌ Status: Calibration Failed", fg='#e74c3c')
+        self.calibrate_button.config(state='normal')
+        messagebox.showerror("Calibration Error", f"Calibration failed:\n{error_msg}")
+        self.root.after(2000, lambda: self.status_label.config(text="🟢 Status: Connected & Reading", fg='#27ae60'))
     
     def update_display(self, weight, temperature):
         # Update current weight display with Japanese-style indicators

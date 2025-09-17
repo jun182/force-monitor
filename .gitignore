@@ -55,6 +55,11 @@ drift_data.csv
 session_data.csv
 *.log
 
+# FC2231 specific
+fc2231_calibration.json
+test_calibration.json
+fc2231_session_*.csv
+
 # Temporary files
 temp/
 tmp/
