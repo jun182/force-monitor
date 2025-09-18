@@ -18,7 +18,7 @@ home
 
 # 🌸 Force Monitor ~ Kawaii Edition 🌸
 
-**Johnny Hamnesjö Olausson**  >>>>>>> caea68d6e3c76cd23c1e85cf73c744de0b7042e0
+**Johnny Hamnesjö Olausson**
 
 📧 Email: johnny.hamnesjo@chalmers.se  
 
