@@ -1,4 +1,4 @@
-# 🌸 Force Monitor ~ Kawaii Edition 🌸<<<<<<< HEAD
+# 🌸 Force Monitor ~ Kawaii Edition 🌸
 
 # FC2231 Force Monitor - Terminal Interface# 🌸 Force Monitor ~ Kawaii Edition 🌸
 
