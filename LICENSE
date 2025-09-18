@@ -24,10 +24,10 @@ Email: johnny.hamnesjo@chalmers.se
 Institution: Chalmers University of Technology
 Department: Department of Industrial and Materials Science
 
-This project provides a beautiful, Zen-inspired interface for precision
-weight measurement using SparkFun OpenScale load cell amplifiers.
+This project intends to provide a beautiful interface for precision
+weight measurement using Arduino Uno and the FC22 Compression Load Cell. Originally designed for OpenScale.
 
-Designed with Japanese aesthetic principles emphasizing simplicity,
+Designed with weeaboo aesthetic principles emphasizing simplicity,
 precision, and mindful interaction with measurement data.
 
 🌸 Built with Zen simplicity and precision 禅のシンプルさと精密さ 🌸
